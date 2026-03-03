@@ -1,0 +1,18 @@
+# Dependencies — reinstalled inside the image
+node_modules/
+
+# TypeScript build output — not used (tsx runs source directly)
+dist/
+
+# Git history
+.git/
+.gitignore
+
+# Secrets — never bake into the image
+.env
+.env.*
+!.env.example
+
+# Editor / OS noise
+.DS_Store
+*.log

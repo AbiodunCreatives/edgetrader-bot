@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pnpm init:*)",
+      "Bash(pnpm add:*)",
+      "Skill(claude-developer-platform)",
+      "Bash(pnpm exec:*)",
+      "Bash(node:*)",
+      "Bash(pnpm dev:*)",
+      "Bash(netstat -ano)",
+      "Bash(xargs -I{} taskkill /PID {} /F)",
+      "Bash(cmd:*)",
+      "Bash(powershell:*)",
+      "Bash(npx tsx:*)",
+      "Bash(netstat:*)",
+      "Bash(pnpm typecheck:*)",
+      "Bash(chmod +x:*)",
+      "Bash(bash:*)"
+    ]
+  }
+}

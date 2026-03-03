@@ -1,0 +1,15 @@
+# Node
+node_modules/
+dist/
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+
+# Logs and misc
+*.log
+.DS_Store
+
+# Git
+.git/

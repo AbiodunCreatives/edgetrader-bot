@@ -1,0 +1,39 @@
+app            = "edge-trader-bot"
+primary_region = "lax"
+
+[build]
+  # Dockerfile at the repo root
+
+# Non-secret env vars — secrets are set via `fly secrets set`
+[env]
+  PORT     = "3000"
+  NODE_ENV = "production"
+
+[http_service]
+  internal_port        = 3000
+  force_https          = true
+  # Bot must stay alive for cron jobs (alert checks, daily picks)
+  auto_stop_machines   = false
+  auto_start_machines  = true
+  min_machines_running = 1
+
+  [http_service.concurrency]
+    type       = "requests"
+    soft_limit = 150
+    hard_limit = 200
+
+[[vm]]
+  memory   = "256mb"
+  cpu_kind = "shared"
+  cpus     = 1
+
+# Health check — Fly will restart the machine if this fails 3× in a row
+[checks]
+  [checks.health]
+    type         = "http"
+    method       = "GET"
+    path         = "/health"
+    port         = 3000
+    interval     = "30s"
+    timeout      = "5s"
+    grace_period = "15s"

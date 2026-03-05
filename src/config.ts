@@ -44,6 +44,9 @@ const envSchema = z.object({
   // Admin
   ADMIN_TELEGRAM_ID: z.coerce.number().optional(),
 
+  // Health endpoint protection
+  HEALTH_CHECK_TOKEN: z.string().optional(),
+
   // Environment
   NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
 });
@@ -68,6 +71,10 @@ if (config.NODE_ENV === "production") {
   }
   if (config.WEBHOOK_PATH_SECRET === "dev-webhook-secret") {
     console.error("ERROR: Set WEBHOOK_PATH_SECRET to a unique value in production.");
+    process.exit(1);
+  }
+  if (!config.HEALTH_CHECK_TOKEN) {
+    console.error("ERROR: HEALTH_CHECK_TOKEN is required in production to protect /health.");
     process.exit(1);
   }
 }

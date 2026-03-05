@@ -118,8 +118,7 @@ deploy_railway() {
   require_var REDIS_URL
   require_var WEBHOOK_PATH_SECRET
   require_var WEBHOOK_SECRET
-  require_var WEBHOOK_PATH_SECRET
-  require_var WEBHOOK_SECRET
+  require_var HEALTH_CHECK_TOKEN
 
   log "=== Railway deployment ==="
 
@@ -133,6 +132,7 @@ deploy_railway() {
     "REDIS_URL=${REDIS_URL}"
     "WEBHOOK_PATH_SECRET=${WEBHOOK_PATH_SECRET}"
     "WEBHOOK_SECRET=${WEBHOOK_SECRET}"
+    "HEALTH_CHECK_TOKEN=${HEALTH_CHECK_TOKEN}"
     "NODE_ENV=production"
     "PORT=3000"
   )
@@ -186,6 +186,9 @@ deploy_fly() {
   require_var SUPABASE_URL
   require_var SUPABASE_SERVICE_ROLE_KEY
   require_var REDIS_URL
+  require_var WEBHOOK_PATH_SECRET
+  require_var WEBHOOK_SECRET
+  require_var HEALTH_CHECK_TOKEN
 
   log "=== Fly.io deployment ==="
 
@@ -208,6 +211,7 @@ deploy_fly() {
     "REDIS_URL=${REDIS_URL}"
     "WEBHOOK_PATH_SECRET=${WEBHOOK_PATH_SECRET}"
     "WEBHOOK_SECRET=${WEBHOOK_SECRET}"
+    "HEALTH_CHECK_TOKEN=${HEALTH_CHECK_TOKEN}"
     "WEBHOOK_URL=${fly_url}"
   )
 
@@ -300,4 +304,9 @@ case "$PLATFORM" in
 esac
 
 log "Done!"
+
+
+
+
+
 

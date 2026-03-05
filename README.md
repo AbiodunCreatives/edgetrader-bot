@@ -4,7 +4,7 @@ AI copilot for prediction markets inside Telegram. Searches Polymarket + Bayse, 
 
 ## Quick start
 1) Install deps: `pnpm install`
-2) Copy env: `copy .env.example .env` (or `cp ...`) and fill required keys (`BOT_TOKEN`, `ANTHROPIC_API_KEY`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `REDIS_URL`). For production set `WEBHOOK_URL`, `WEBHOOK_PATH_SECRET` (random string), and `WEBHOOK_SECRET` (Telegram header token).
+2) Copy env: `copy .env.example .env` (or `cp ...`) and fill required keys (`BOT_TOKEN`, `ANTHROPIC_API_KEY`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `REDIS_URL`). For production set `WEBHOOK_URL`, `WEBHOOK_PATH_SECRET` (random string), `WEBHOOK_SECRET` (Telegram header token), and `HEALTH_CHECK_TOKEN`.
 3) Dev: `pnpm dev` (long polling, serves `GET /health` on `PORT`, default 3000)
 4) Prod webhook: set `WEBHOOK_URL`, then `pnpm start` (registers `/webhook/{BOT_TOKEN}`)
 

@@ -33,7 +33,8 @@ registerCommands(bot);
 // ── Express ───────────────────────────────────────────────────────────────────
 
 const app = express();
-app.use(express.json());
+// Limit payload size to mitigate abuse on the webhook endpoint
+app.use(express.json({ limit: "100kb" }));
 
 // GET /health ─────────────────────────────────────────────────────────────────
 
@@ -73,10 +74,18 @@ app.get("/health", async (_req, res) => {
 
 // POST /webhook/:token ─────────────────────────────────────────────────────────
 
-app.post("/webhook/:token", (req, res) => {
-  // Reject requests with the wrong token before touching the update
-  if (req.params["token"] !== config.BOT_TOKEN) {
-    console.warn("[webhook] Rejected request with invalid token");
+app.post("/webhook/:secret", (req, res) => {
+  // Reject requests with the wrong path secret before touching the update
+  if (req.params["secret"] !== config.WEBHOOK_PATH_SECRET) {
+    console.warn("[webhook] Rejected request with invalid path secret");
+    res.sendStatus(403);
+    return;
+  }
+
+  // Optional: Telegram header-based secret (strongly recommended in prod)
+  const headerSecret = req.header("x-telegram-bot-api-secret-token");
+  if (config.WEBHOOK_SECRET && headerSecret !== config.WEBHOOK_SECRET) {
+    console.warn("[webhook] Rejected request with invalid secret token header");
     res.sendStatus(403);
     return;
   }
@@ -185,7 +194,7 @@ async function main(): Promise<void> {
 
   if (config.WEBHOOK_URL) {
     // ── Webhook mode (production) ────────────────────────────────────────────
-    const webhookUrl = `${config.WEBHOOK_URL}/webhook/${config.BOT_TOKEN}`;
+    const webhookUrl = `${config.WEBHOOK_URL}/webhook/${config.WEBHOOK_PATH_SECRET}`;
 
     await bot.api.setWebhook(webhookUrl, {
       ...(config.WEBHOOK_SECRET ? { secret_token: config.WEBHOOK_SECRET } : {}),

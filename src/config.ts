@@ -10,6 +10,10 @@ const envSchema = z.object({
     (v) => (v === "" ? undefined : v),
     z.string().url().optional()
   ),
+  WEBHOOK_PATH_SECRET: z.preprocess(
+    (v) => (v === "" || v === undefined ? "dev-webhook-secret" : v),
+    z.string().min(12, "WEBHOOK_PATH_SECRET must be at least 12 characters")
+  ),
   WEBHOOK_SECRET: z.string().optional(),
   PORT: z.coerce.number().default(3000),
 
@@ -47,12 +51,26 @@ const envSchema = z.object({
 const parsed = envSchema.safeParse(process.env);
 
 if (!parsed.success) {
-  console.error("❌ Invalid environment variables:");
+  console.error("ERROR: Invalid environment variables:");
   for (const [field, errors] of Object.entries(parsed.error.flatten().fieldErrors)) {
     console.error(`  ${field}: ${errors?.join(", ")}`);
   }
   process.exit(1);
 }
 
-export const config = parsed.data;
+const config = parsed.data;
+
+// Hard guards for production deployments
+if (config.NODE_ENV === "production") {
+  if (!config.WEBHOOK_SECRET) {
+    console.error("ERROR: WEBHOOK_SECRET is required in production (prevents forged webhook calls).");
+    process.exit(1);
+  }
+  if (config.WEBHOOK_PATH_SECRET === "dev-webhook-secret") {
+    console.error("ERROR: Set WEBHOOK_PATH_SECRET to a unique value in production.");
+    process.exit(1);
+  }
+}
+
+export { config };
 export type Config = typeof config;

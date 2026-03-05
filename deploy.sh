@@ -76,9 +76,14 @@ wait_for_health() {
 # Register (or update) the Telegram webhook for the deployed URL
 register_webhook() {
   local base_url="$1"         # e.g. https://my-app.up.railway.app
-  local webhook_url="${base_url}/webhook/${BOT_TOKEN}"
+  local webhook_url="${base_url}/webhook/${WEBHOOK_PATH_SECRET}"
 
-  log "Registering webhook → ${base_url}/webhook/<token>"
+  log "Registering webhook -> ${base_url}/webhook/<secret>"
+
+  local secret_field=""
+  if [[ -n "${WEBHOOK_SECRET:-}" ]]; then
+    secret_field=",\n      \"secret_token\": \"${WEBHOOK_SECRET}\""
+  fi
 
   local response
   response=$(curl -fsSL -X POST \
@@ -87,7 +92,7 @@ register_webhook() {
     -d "{
       \"url\": \"${webhook_url}\",
       \"drop_pending_updates\": true,
-      \"allowed_updates\": [\"message\", \"callback_query\", \"inline_query\", \"my_chat_member\"]
+      \"allowed_updates\": [\"message\", \"callback_query\", \"inline_query\", \"my_chat_member\"]${secret_field}
     }")
 
   if echo "$response" | grep -q '"ok":true'; then
@@ -111,6 +116,10 @@ deploy_railway() {
   require_var SUPABASE_URL
   require_var SUPABASE_SERVICE_ROLE_KEY
   require_var REDIS_URL
+  require_var WEBHOOK_PATH_SECRET
+  require_var WEBHOOK_SECRET
+  require_var WEBHOOK_PATH_SECRET
+  require_var WEBHOOK_SECRET
 
   log "=== Railway deployment ==="
 
@@ -122,12 +131,13 @@ deploy_railway() {
     "SUPABASE_URL=${SUPABASE_URL}"
     "SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}"
     "REDIS_URL=${REDIS_URL}"
+    "WEBHOOK_PATH_SECRET=${WEBHOOK_PATH_SECRET}"
+    "WEBHOOK_SECRET=${WEBHOOK_SECRET}"
     "NODE_ENV=production"
     "PORT=3000"
   )
 
   # Optional vars — only set if present in .env
-  is_set WEBHOOK_SECRET         && vars+=("WEBHOOK_SECRET=${WEBHOOK_SECRET}")
   is_set ADMIN_TELEGRAM_ID      && vars+=("ADMIN_TELEGRAM_ID=${ADMIN_TELEGRAM_ID}")
   is_set ANTHROPIC_DAILY_TOKEN_BUDGET && vars+=("ANTHROPIC_DAILY_TOKEN_BUDGET=${ANTHROPIC_DAILY_TOKEN_BUDGET}")
 
@@ -196,10 +206,11 @@ deploy_fly() {
     "SUPABASE_URL=${SUPABASE_URL}"
     "SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}"
     "REDIS_URL=${REDIS_URL}"
+    "WEBHOOK_PATH_SECRET=${WEBHOOK_PATH_SECRET}"
+    "WEBHOOK_SECRET=${WEBHOOK_SECRET}"
     "WEBHOOK_URL=${fly_url}"
   )
 
-  is_set WEBHOOK_SECRET         && secrets+=("WEBHOOK_SECRET=${WEBHOOK_SECRET}")
   is_set ADMIN_TELEGRAM_ID      && secrets+=("ADMIN_TELEGRAM_ID=${ADMIN_TELEGRAM_ID}")
   is_set ANTHROPIC_DAILY_TOKEN_BUDGET \
     && secrets+=("ANTHROPIC_DAILY_TOKEN_BUDGET=${ANTHROPIC_DAILY_TOKEN_BUDGET}")
@@ -289,3 +300,4 @@ case "$PLATFORM" in
 esac
 
 log "Done!"
+

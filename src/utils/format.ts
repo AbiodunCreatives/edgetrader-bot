@@ -51,6 +51,31 @@ export function formatDate(date: string | number | Date): string {
   return d.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
 }
 
+/** Format a date/time as relative time (e.g., "2 hours ago" / "in 3 days"). */
+export function formatRelativeTime(date: string | number | Date): string {
+  const target = new Date(date).getTime();
+  const now = Date.now();
+  const diffMs = target - now;
+  const abs = Math.abs(diffMs);
+
+  const minute = 60 * 1000;
+  const hour = 60 * minute;
+  const day = 24 * hour;
+
+  const formatUnit = (value: number, unit: string) => `${value} ${unit}${value !== 1 ? "s" : ""}`;
+
+  let text: string;
+  if (abs < hour) {
+    text = formatUnit(Math.round(abs / minute) || 1, "minute");
+  } else if (abs < day) {
+    text = formatUnit(Math.round(abs / hour), "hour");
+  } else {
+    text = formatUnit(Math.round(abs / day), "day");
+  }
+
+  return diffMs >= 0 ? `in ${text}` : `${text} ago`;
+}
+
 /** Returns a trend arrow based on price change */
 export function trendArrow(change: number): string {
   if (change > 0.02) return "🟢↑";
@@ -62,6 +87,13 @@ export function trendArrow(change: number): string {
 export function probBar(p: number | null | undefined, width = 10): string {
   const filled = Math.round((p ?? 0) * width);
   return "█".repeat(filled) + "░".repeat(width - filled);
+}
+
+/** Format a large integer count with K/M suffix */
+export function formatCount(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+  return String(n);
 }
 
 /** Standard error message for users */

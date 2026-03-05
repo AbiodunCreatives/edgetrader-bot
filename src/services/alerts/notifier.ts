@@ -16,6 +16,7 @@ import { saveSearchResults } from "../../bot/session.js";
 import { escapeHtml, formatProbability, formatVolume } from "../../utils/format.js";
 import type { MarketData } from "../markets/types.js";
 import type { DbAlertWithUser } from "../../db/queries.js";
+import { redis } from "../../utils/rateLimit.js";
 
 // Single shared Api instance — thread-safe, stateless
 const tgApi = new Api(config.BOT_TOKEN);
@@ -62,6 +63,7 @@ export async function sendAlert(
     parse_mode: "HTML",
     reply_markup: kb,
   });
+  void redis.incr("stats:alerts_triggered").catch(() => null);
 }
 
 // ── Daily picks broadcast ──────────────────────────────────────────────────

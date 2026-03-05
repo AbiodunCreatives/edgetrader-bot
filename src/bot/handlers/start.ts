@@ -28,18 +28,31 @@ export async function handleStart(ctx: Context): Promise<void> {
     .row()
     .text("❓ Help", "nav:help");
 
+  // Message 1: Welcome + what it does
   await ctx.reply(
-    `👋 Hey ${name}! Welcome to <b>Edge Trader</b>.\n\n` +
-      `I'm your AI-powered prediction market analyst. I track Polymarket &amp; Bayse in real-time and use Claude to find edges.\n\n` +
+    `👋 Hey ${name}! Welcome to <b>Edge Trader</b> — your AI-powered prediction market analyst.\n\n` +
+      `I track Polymarket &amp; Bayse in real-time and use Claude AI to surface mispriced markets and find edges.\n\n` +
       `<b>What I can do:</b>\n` +
       `• <code>/search &lt;topic&gt;</code> — find &amp; analyse markets\n` +
       `• <code>/compare &lt;topic&gt;</code> — compare markets side-by-side\n` +
-      `• <code>/picks</code> — today's top AI-picked opportunities\n` +
-      `• <code>/alert</code> — set price alerts\n` +
+      `• <code>/picks</code> — today’s top AI-picked opportunities\n` +
+      `• <code>/alert</code> — set price movement alerts\n` +
       `• <code>/portfolio</code> — track your positions\n` +
       `• <code>/game &lt;topic&gt;</code> — group prediction game\n\n` +
       `Where do you want to start?`,
     { parse_mode: "HTML", reply_markup: kb }
+  );
+
+  // Message 2: Quick tutorial
+  await ctx.reply(
+    "🧭 <b>Quick start</b> — try a search right now:\n\n<code>/search bitcoin</code>\n\nor type <code>@EdgeTraderBot bitcoin</code> in any chat!",
+    { parse_mode: "HTML" }
+  );
+
+  // Message 3: Group game CTA
+  await ctx.reply(
+    "🎮 <b>Add me to a group</b> to start a prediction game with friends!\n\nUse <code>/game &lt;topic&gt;</code> in any group chat.",
+    { parse_mode: "HTML" }
   );
 }
 

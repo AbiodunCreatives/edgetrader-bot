@@ -2,7 +2,14 @@ import type { Context } from "grammy";
 import { InlineKeyboard } from "grammy";
 import { searchAllMarkets } from "../../services/markets/aggregator.js";
 import { analyzeMarket } from "../../services/ai/analyzer.js";
-import { formatProbability, formatVolume, probBar, escapeHtml, bold } from "../../utils/format.js";
+import {
+  formatProbability,
+  formatVolume,
+  probBar,
+  escapeHtml,
+  bold,
+  formatRelativeTime,
+} from "../../utils/format.js";
 import {
   saveSearchResults,
   getSearchResults,
@@ -10,6 +17,8 @@ import {
   saveAlertState,
 } from "../session.js";
 import type { MarketData } from "../../services/markets/types.js";
+import { redis } from "../../utils/rateLimit.js";
+import type { InlineQueryResultArticle } from "grammy/types";
 
 const MAX_LABEL_LEN = 38;
 
@@ -41,7 +50,7 @@ function formatMarketCard(m: MarketData): string {
   const bar = probBar(m.probability);
   const vol = formatVolume(m.volume);
   const closes = m.endDate
-    ? `Closes: ${new Date(m.endDate).toDateString()}`
+    ? `Closes: ${formatRelativeTime(m.endDate)}`
     : "No end date";
   return (
     `${bold(escapeHtml(m.question))}\n\n` +
@@ -70,6 +79,7 @@ export async function handleSearch(ctx: Context): Promise<void> {
   }
 
   console.log(`[search] query="${query}" — sending loading message`);
+  await ctx.api.sendChatAction(ctx.chat!.id, "typing").catch(() => null);
   const loading = await ctx.reply(`🔍 Searching for <b>${escapeHtml(query)}</b>…`, {
     parse_mode: "HTML",
   });
@@ -90,6 +100,7 @@ export async function handleSearch(ctx: Context): Promise<void> {
 
     console.log(`[search] searchAllMarkets returned ${markets.length} result(s)`);
     await saveSearchResults(ctx.from.id, markets);
+    void redis.incr("stats:searches").catch(() => null);
 
     const count = markets.length;
     const header = `🔍 Found <b>${count}</b> market${count !== 1 ? "s" : ""} for "<b>${escapeHtml(query)}</b>". Tap one to analyse:`;
@@ -154,6 +165,37 @@ export async function handleMarketSelect(ctx: Context): Promise<void> {
         reply_markup: analysisKeyboard(idx),
       }
     ).catch(() => null);
+  }
+}
+
+// ── Inline mode: @Bot query ─────────────────────────────────────────────────────
+
+export async function handleInlineQuery(ctx: Context): Promise<void> {
+  const q = ctx.inlineQuery?.query.trim() ?? "";
+  if (!q) {
+    await ctx.answerInlineQuery([], { cache_time: 5 }).catch(() => null);
+    return;
+  }
+
+  try {
+    const markets = await searchAllMarkets(q, 6);
+    void redis.incr("stats:searches").catch(() => null);
+
+    const results: InlineQueryResultArticle[] = markets.map((m, i) => ({
+      type: "article",
+      id: `${m.source}-${m.id}-${i}`,
+      title: `${m.source === "polymarket" ? "PM" : "BY"} • ${m.question.slice(0, 64)}`,
+      description: `${formatProbability(m.probability)} | ${formatVolume(m.volume)}`,
+      input_message_content: {
+        message_text: formatMarketCard(m),
+        parse_mode: "HTML",
+        link_preview_options: { is_disabled: true },
+      },
+    }));
+
+    await ctx.answerInlineQuery(results, { cache_time: 5 }).catch(() => null);
+  } catch (err) {
+    await ctx.answerInlineQuery([], { cache_time: 5 }).catch(() => null);
   }
 }
 

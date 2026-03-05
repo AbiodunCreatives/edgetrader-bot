@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Edge Trader Bot — AI Prediction Market Copilot</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0f1720;
+      --panel: #141d29;
+      --panel-2: #111927;
+      --text: #e7edf6;
+      --muted: #9fb3c8;
+      --accent: #24c4a7;
+      --accent-2: #58a8ff;
+      --border: #1f2a3a;
+      --shadow: 0 25px 80px rgba(0,0,0,0.35);
+      --radius: 16px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Space Grotesk", system-ui, -apple-system, sans-serif;
+      background: radial-gradient(120% 120% at 20% 20%, rgba(88,168,255,0.14), transparent 40%),
+                  radial-gradient(120% 120% at 80% 0%, rgba(36,196,167,0.16), transparent 40%),
+                  var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      min-height: 100vh;
+    }
+    a { color: inherit; text-decoration: none; }
+    .page {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 36px 24px 80px;
+    }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 32px;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+    .badge {
+      background: linear-gradient(120deg, var(--accent), var(--accent-2));
+      color: #04201b;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .cta-row {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .btn {
+      padding: 12px 16px;
+      border-radius: 12px;
+      border: 1px solid transparent;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.1s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      color: #041012;
+      box-shadow: 0 12px 32px rgba(36,196,167,0.35);
+    }
+    .btn-secondary {
+      border-color: var(--border);
+      background: var(--panel-2);
+      color: var(--text);
+    }
+    .btn:hover { transform: translateY(-1px); }
+    .hero {
+      background: rgba(20, 29, 41, 0.75);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 36px;
+      box-shadow: var(--shadow);
+      display: grid;
+      grid-template-columns: 1.1fr 0.9fr;
+      gap: 26px;
+    }
+    .hero h1 {
+      margin: 0 0 12px;
+      font-size: clamp(28px, 4vw, 40px);
+      letter-spacing: -0.03em;
+    }
+    .subhead { color: var(--muted); margin-bottom: 18px; }
+    .hero-card {
+      background: linear-gradient(160deg, rgba(88,168,255,0.08), rgba(36,196,167,0.12));
+      border-radius: 14px;
+      padding: 16px;
+      border: 1px solid var(--border);
+    }
+    .pill { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 999px; background: #0c1622; color: var(--muted); font-size: 13px; margin-right: 8px; }
+    .grid {
+      display: grid;
+      gap: 16px;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      margin-top: 26px;
+    }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 18px;
+      box-shadow: var(--shadow);
+    }
+    .card h3 { margin: 0 0 8px; font-size: 18px; }
+    .muted { color: var(--muted); }
+    .steps { counter-reset: step; }
+    .step {
+      position: relative;
+      padding-left: 38px;
+      margin-bottom: 12px;
+    }
+    .step:before {
+      counter-increment: step;
+      content: counter(step);
+      position: absolute;
+      left: 0; top: 0;
+      width: 26px; height: 26px;
+      border-radius: 50%;
+      background: rgba(88,168,255,0.16);
+      color: var(--text);
+      display: grid; place-items: center;
+      font-weight: 700;
+    }
+    footer {
+      margin-top: 48px;
+      color: var(--muted);
+      font-size: 14px;
+      text-align: center;
+    }
+    @media (max-width: 900px) {
+      .hero { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header>
+      <div class="brand">
+        <span class="badge">AI</span>
+        Edge Trader Bot
+      </div>
+      <div class="cta-row">
+        <a class="btn btn-secondary" href="https://t.me/EdgeTraderBot" target="_blank" rel="noopener">Open Bot</a>
+        <a class="btn btn-primary" href="https://t.me/EdgeTraderBot" target="_blank" rel="noopener">Launch in Telegram</a>
+      </div>
+    </header>
+
+    <section class="hero">
+      <div>
+        <div class="pill">Prediction markets • Polymarket + Bayse</div>
+        <h1>Find mispriced markets with an AI copilot.</h1>
+        <p class="subhead">Search, compare, set alerts, and run group games — all powered by live market data and Claude analysis.</p>
+        <div class="cta-row">
+          <a class="btn btn-primary" href="https://t.me/EdgeTraderBot" target="_blank" rel="noopener">Try the Bot</a>
+          <a class="btn btn-secondary" href="#features">See how it works</a>
+        </div>
+        <div style="margin-top:16px;" class="muted">Runs in Telegram • No account signup • Built for fast demos</div>
+      </div>
+      <div class="hero-card">
+        <div class="pill">Live Preview</div>
+        <div style="font-weight:600; margin:8px 0;">Who will be the Presidential Candidate of ADC in 2027?</div>
+        <div class="muted">Bayse • 38.9% YES • Volume: $269</div>
+        <div style="margin-top:12px; font-weight:600;">Edge Take</div>
+        <div class="muted">Low volume, thin order book; recent headlines suggest party switch already resolved — price likely mispriced.</div>
+      </div>
+    </section>
+
+    <section id="features" class="grid" style="margin-top:30px;">
+      <div class="card">
+        <h3>🔍 Instant search</h3>
+        <p class="muted">Type <code>/search your topic</code> to scan Polymarket + Bayse, dedupe, and sort by liquidity.</p>
+      </div>
+      <div class="card">
+        <h3>🤖 Fresh AI analysis</h3>
+        <p class="muted">Claude reviews live prices + latest news headlines to spot stale or resolved markets.</p>
+      </div>
+      <div class="card">
+        <h3>⏰ Smart alerts</h3>
+        <p class="muted">Set above/below/volume-spike alerts; notifications land in Telegram instantly.</p>
+      </div>
+      <div class="card">
+        <h3>🎮 Group games</h3>
+        <p class="muted">Add the bot to any group and run quick prediction rounds with leaderboards.</p>
+      </div>
+      <div class="card">
+        <h3>📊 Demo stats</h3>
+        <p class="muted">/stats shows searches, games, and alerts to impress stakeholders.</p>
+      </div>
+      <div class="card">
+        <h3>⚡ Inline mode</h3>
+        <p class="muted">Type @EdgeTraderBot &nbsp;+ query in any chat to share live odds without adding the bot.</p>
+      </div>
+    </section>
+
+    <section class="card" style="margin-top:30px;">
+      <h3>How it works</h3>
+      <div class="steps">
+        <div class="step"><strong>Search</strong> — Cross-source query (Polymarket + Bayse), deduped & sorted by volume.</div>
+        <div class="step"><strong>Analyze</strong> — Claude + latest headlines for freshness; 5‑minute cache for speed.</div>
+        <div class="step"><strong>Act</strong> — Set alerts, compare, or start a group game directly from Telegram.</div>
+      </div>
+    </section>
+
+    <section class="card" style="margin-top:30px;">
+      <h3>Pricing</h3>
+      <p class="muted">V1 Demo: free. Pro/Whale tiers available on request for higher limits, scheduled picks, and unlimited alerts.</p>
+      <div class="cta-row" style="margin-top:12px;">
+        <a class="btn btn-primary" href="https://t.me/EdgeTraderBot" target="_blank" rel="noopener">Launch Demo</a>
+        <a class="btn btn-secondary" href="mailto:hello@edgetrader.ai">Talk to us</a>
+      </div>
+    </section>
+
+    <footer>
+      Edge Trader Bot — AI copilot for prediction markets. Runs in Telegram.
+    </footer>
+  </div>
+</body>
+</html>

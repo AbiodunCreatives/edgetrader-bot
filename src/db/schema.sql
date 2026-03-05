@@ -281,47 +281,60 @@ ALTER TABLE votes          ENABLE ROW LEVEL SECURITY;
 -- anon/authenticated clients can only access their own rows.
 
 -- USERS: each user reads/updates only their own row
+DROP POLICY IF EXISTS users_select_own ON users;
 CREATE POLICY users_select_own ON users
   FOR SELECT USING (telegram_id = (current_setting('request.jwt.claims', TRUE)::jsonb ->> 'telegram_id')::BIGINT);
 
+DROP POLICY IF EXISTS users_update_own ON users;
 CREATE POLICY users_update_own ON users
   FOR UPDATE USING (telegram_id = (current_setting('request.jwt.claims', TRUE)::jsonb ->> 'telegram_id')::BIGINT);
 
 -- ALERTS: scoped to the owning user
+DROP POLICY IF EXISTS alerts_select_own ON alerts;
 CREATE POLICY alerts_select_own ON alerts
   FOR SELECT USING (user_id = (SELECT id FROM users WHERE telegram_id = (current_setting('request.jwt.claims', TRUE)::jsonb ->> 'telegram_id')::BIGINT));
 
+DROP POLICY IF EXISTS alerts_insert_own ON alerts;
 CREATE POLICY alerts_insert_own ON alerts
   FOR INSERT WITH CHECK (user_id = (SELECT id FROM users WHERE telegram_id = (current_setting('request.jwt.claims', TRUE)::jsonb ->> 'telegram_id')::BIGINT));
 
+DROP POLICY IF EXISTS alerts_update_own ON alerts;
 CREATE POLICY alerts_update_own ON alerts
   FOR UPDATE USING (user_id = (SELECT id FROM users WHERE telegram_id = (current_setting('request.jwt.claims', TRUE)::jsonb ->> 'telegram_id')::BIGINT));
 
+DROP POLICY IF EXISTS alerts_delete_own ON alerts;
 CREATE POLICY alerts_delete_own ON alerts
   FOR DELETE USING (user_id = (SELECT id FROM users WHERE telegram_id = (current_setting('request.jwt.claims', TRUE)::jsonb ->> 'telegram_id')::BIGINT));
 
 -- PORTFOLIO: scoped to the owning user
+DROP POLICY IF EXISTS portfolio_select_own ON portfolio;
 CREATE POLICY portfolio_select_own ON portfolio
   FOR SELECT USING (user_id = (SELECT id FROM users WHERE telegram_id = (current_setting('request.jwt.claims', TRUE)::jsonb ->> 'telegram_id')::BIGINT));
 
+DROP POLICY IF EXISTS portfolio_insert_own ON portfolio;
 CREATE POLICY portfolio_insert_own ON portfolio
   FOR INSERT WITH CHECK (user_id = (SELECT id FROM users WHERE telegram_id = (current_setting('request.jwt.claims', TRUE)::jsonb ->> 'telegram_id')::BIGINT));
 
+DROP POLICY IF EXISTS portfolio_update_own ON portfolio;
 CREATE POLICY portfolio_update_own ON portfolio
   FOR UPDATE USING (user_id = (SELECT id FROM users WHERE telegram_id = (current_setting('request.jwt.claims', TRUE)::jsonb ->> 'telegram_id')::BIGINT));
 
+DROP POLICY IF EXISTS portfolio_delete_own ON portfolio;
 CREATE POLICY portfolio_delete_own ON portfolio
   FOR DELETE USING (user_id = (SELECT id FROM users WHERE telegram_id = (current_setting('request.jwt.claims', TRUE)::jsonb ->> 'telegram_id')::BIGINT));
 
 -- GAME_SESSIONS: readable by all authenticated users in the same chat;
 -- only the service role can insert/resolve (the bot backend does this).
+DROP POLICY IF EXISTS game_sessions_select_all ON game_sessions;
 CREATE POLICY game_sessions_select_all ON game_sessions
   FOR SELECT USING (TRUE);
 
 -- VOTES: users can read all votes in a session, but write only their own
+DROP POLICY IF EXISTS votes_select_all ON votes;
 CREATE POLICY votes_select_all ON votes
   FOR SELECT USING (TRUE);
 
+DROP POLICY IF EXISTS votes_insert_own ON votes;
 CREATE POLICY votes_insert_own ON votes
   FOR INSERT WITH CHECK (user_id = (SELECT id FROM users WHERE telegram_id = (current_setting('request.jwt.claims', TRUE)::jsonb ->> 'telegram_id')::BIGINT));
 

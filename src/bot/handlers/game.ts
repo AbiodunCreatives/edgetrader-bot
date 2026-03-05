@@ -13,6 +13,7 @@ import {
 } from "../../db/queries.js";
 import { saveGameSessionMeta, getGameSessionMeta } from "../session.js";
 import { escapeHtml, bold, probBar, formatProbability } from "../../utils/format.js";
+import { redis } from "../../utils/rateLimit.js";
 import type { MarketData } from "../../services/markets/types.js";
 
 const CONFIDENCE_LEVELS = [
@@ -117,6 +118,7 @@ export async function handleGame(ctx: Context): Promise<void> {
     return;
   }
 
+  await ctx.api.sendChatAction(ctx.chat!.id, "typing").catch(() => null);
   const loading = await ctx.reply(`🔍 Finding a market for <b>${escapeHtml(query)}</b>…`, {
     parse_mode: "HTML",
   });
@@ -139,6 +141,7 @@ export async function handleGame(ctx: Context): Promise<void> {
       market_id: `${market.source}:${market.id}`,
       market_question: market.question,
     });
+    void redis.incr("stats:games_started").catch(() => null);
 
     const kb = voteKeyboard(session.id);
     const body = buildGameMessage(market, session.id, 0, 0, 0);

@@ -125,13 +125,18 @@ async function fetchAllMarkets(): Promise<MarketData[]> {
   const now = Date.now();
   if (cachedMarkets && cacheExpiresAt > now) return cachedMarkets;
 
+  // Fetch all pages in parallel instead of sequentially
+  const pageResults = await Promise.allSettled(
+    Array.from({ length: MAX_PAGES }, (_, i) => fetchPage(i + 1))
+  );
+
   const all: MarketData[] = [];
-
-  for (let page = 1; page <= MAX_PAGES; page++) {
-    const events = await fetchPage(page);
-    if (events.length === 0) break;
-
-    for (const ev of events) {
+  for (const result of pageResults) {
+    if (result.status === "rejected") {
+      console.warn("[bayse] Page fetch failed:", result.reason);
+      continue;
+    }
+    for (const ev of result.value) {
       if ((ev.status ?? "").toLowerCase() !== "open") continue;
       all.push(...normalizeEventMarkets(ev));
     }

@@ -20,12 +20,14 @@ import {
   buildUpgradeCta,
   type RateLimitedAction,
 } from "../utils/rateLimit.js";
+import { config } from "../config.js";
 
 import { handleStart, handleNavCallback } from "./handlers/start.js";
 import {
   handleSearch,
   handleMarketSelect,
   handleMarketAction,
+  handleInlineQuery,
 } from "./handlers/search.js";
 import {
   handleCompare,
@@ -43,6 +45,8 @@ import { handlePicks } from "./handlers/picks.js";
 import { handleGame, handleGameVote } from "./handlers/game.js";
 import { handleUpgrade } from "./handlers/upgrade.js";
 import { handleReset } from "./handlers/reset.js";
+import { handleHelp } from "./handlers/help.js";
+import { handleStats } from "./handlers/stats.js";
 
 export function registerCommands(bot: Bot): void {
   // ── Middleware: ensure every interacting user exists in DB ──────────────
@@ -57,7 +61,8 @@ export function registerCommands(bot: Bot): void {
 
   // ── Commands ─────────────────────────────────────────────────────────────
 
-  bot.command(["start", "help"], wrap(handleStart));
+  bot.command(["start"], wrap(handleStart));
+  bot.command("help",     wrap(handleHelp));
   bot.command("search",    withRateLimit("search",    handleSearch));
   bot.command("compare",   withRateLimit("compare",   handleCompare));
   bot.command("picks",     withRateLimit("picks",     handlePicks));
@@ -68,6 +73,7 @@ export function registerCommands(bot: Bot): void {
   bot.command("alert",   wrap(handleAlert));
   bot.command("upgrade", wrap(handleUpgrade));
   bot.command("reset",   wrap(handleReset));
+  bot.command("stats",   wrap(handleStats));
 
   // ── Callback queries ──────────────────────────────────────────────────────
 
@@ -90,6 +96,9 @@ export function registerCommands(bot: Bot): void {
 
   // Game votes: gv:{y|n}:{shortId}:{confidence}
   bot.callbackQuery(/^gv:/, wrap(handleGameVote));
+
+  // Inline mode search
+  bot.inlineQuery(/.*/, wrapInline(handleInlineQuery));
 
   // ── Global error handler ─────────────────────────────────────────────────
   bot.catch((err) => {
@@ -126,12 +135,26 @@ function wrap(
       console.log(`[bot:wrap] update=${updateId} handler=${handlerName} — done`);
     } catch (err) {
       console.error(`[bot:wrap] update=${updateId} handler=${handlerName} — caught error:`, err);
-      const msg =
-        err instanceof Error ? err.message : "An unexpected error occurred";
-
       await ctx
-        .reply(`❌ ${msg.slice(0, 400)}`, { parse_mode: "HTML" })
+        .reply("❌ Something went wrong, please try again.", { parse_mode: "HTML" })
         .catch((e) => console.error("[bot:wrap] reply failed:", e));
+    }
+  };
+}
+
+/** Inline query wrapper with friendly error handling. */
+function wrapInline(
+  handler: (ctx: Context) => Promise<void>
+): (ctx: Context) => Promise<void> {
+  return async (ctx: Context) => {
+    const updateId = ctx.update.update_id;
+    const handlerName = handler.name || "(anonymous)";
+    try {
+      await handler(ctx);
+      console.log(`[bot:inline] update=${updateId} handler=${handlerName} — done`);
+    } catch (err) {
+      console.error(`[bot:inline] update=${updateId} handler=${handlerName} — caught error:`, err);
+      await ctx.answerInlineQuery([], { cache_time: 5 }).catch(() => null);
     }
   };
 }
@@ -148,6 +171,12 @@ function withRateLimit(
   return wrap(async (ctx: Context) => {
     if (!ctx.from) {
       console.warn(`[bot:rateLimit] ${action} — ctx.from is null, skipping`);
+      return;
+    }
+
+    // Admin bypass — skip rate limiting entirely
+    if (config.ADMIN_TELEGRAM_ID && ctx.from.id === config.ADMIN_TELEGRAM_ID) {
+      await handler(ctx);
       return;
     }
 

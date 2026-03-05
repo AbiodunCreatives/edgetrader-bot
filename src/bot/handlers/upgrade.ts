@@ -11,7 +11,7 @@ import { getRemainingQuota } from "../../utils/rateLimit.js";
 import { escapeHtml } from "../../utils/format.js";
 
 // Change this to your actual Telegram handle
-const ADMIN_HANDLE = "@EdgeTraderAdmin";
+const ADMIN_HANDLE = "@biodunCrypt";
 
 function quota(used: number, limit: number | null): string {
   if (limit === null) return "✅ Unlimited";

@@ -87,7 +87,7 @@ register_webhook() {
     -d "{
       \"url\": \"${webhook_url}\",
       \"drop_pending_updates\": true,
-      \"allowed_updates\": [\"message\", \"callback_query\", \"my_chat_member\"]
+      \"allowed_updates\": [\"message\", \"callback_query\", \"inline_query\", \"my_chat_member\"]
     }")
 
   if echo "$response" | grep -q '"ok":true'; then

@@ -27,7 +27,7 @@ import {
 const anthropic = new Anthropic({ apiKey: config.ANTHROPIC_API_KEY });
 
 const MODEL = "claude-opus-4-6";
-const AI_CACHE_TTL = 15 * 60; // 15 minutes in seconds
+const AI_CACHE_TTL = 5 * 60; // 5 minutes for fresher analyses
 
 // ── Token Budget ───────────────────────────────────────────────────────────
 
@@ -166,6 +166,32 @@ function priceBucket(probability: number | null | undefined): string {
   return (Math.round(probability * 20) / 20).toFixed(2);
 }
 
+// ── Lightweight news fetcher (Google News RSS) ──────────────────────────────────
+
+async function fetchRecentNews(query: string, limit = 3): Promise<{ title: string; date: string }[]> {
+  const url = `https://news.google.com/rss/search?q=${encodeURIComponent(query)}&hl=en-US&gl=US&ceid=US:en`;
+  try {
+    const res = await fetch(url, { headers: { Accept: "application/rss+xml, application/xml" } });
+    if (!res.ok) return [];
+    const xml = await res.text();
+    const items = xml.split("<item>").slice(1);
+    const headlines: { title: string; date: string }[] = [];
+    for (const item of items) {
+      if (headlines.length >= limit) break;
+      const titleMatch = item.match(/<title><!\[CDATA\[(.*?)\]\]><\/title>/);
+      const dateMatch = item.match(/<pubDate>(.*?)<\/pubDate>/);
+      const title = titleMatch?.[1]?.trim();
+      const date = dateMatch?.[1];
+      if (title) {
+        headlines.push({ title, date: date ? new Date(date).toISOString() : "" });
+      }
+    }
+    return headlines;
+  } catch {
+    return [];
+  }
+}
+
 // ── Core API wrapper ───────────────────────────────────────────────────────
 
 interface ClaudeResult {
@@ -229,7 +255,19 @@ export async function analyzeMarket(market: MarketData): Promise<string> {
 
   await guardBudget();
 
-  const userMessage = formatMarket(market);
+  const news = await fetchRecentNews(market.question, 3);
+  const newsBlock =
+    news.length === 0
+      ? "Recent news: none found."
+      : "Recent news:\n" +
+        news
+          .map(
+            (n) =>
+              `- ${n.title}${n.date ? ` (${new Date(n.date).toDateString()})` : ""}`
+          )
+          .join("\n");
+
+  const userMessage = `${formatMarket(market)}\n\n${newsBlock}`;
   const result = await callClaude(MARKET_ANALYSIS_PROMPT, userMessage, 500);
 
   await recordUsage(result.inputTokens, result.outputTokens);

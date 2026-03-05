@@ -10,6 +10,7 @@ import { getAlertState, saveAlertState, clearAlertState } from "../session.js";
 import { escapeHtml, bold, formatProbability } from "../../utils/format.js";
 import { checkAlertQuota, buildAlertQuotaCta } from "../../utils/rateLimit.js";
 import type { DbAlert } from "../../db/queries.js";
+import { redis } from "../../utils/rateLimit.js";
 
 function truncate(s: string, n: number) {
   return s.length <= n ? s : s.slice(0, n - 1) + "…";
@@ -195,6 +196,7 @@ export async function handleAlertSetThreshold(ctx: Context): Promise<void> {
       condition,
       threshold,
     });
+    void redis.incr("stats:alerts_created").catch(() => null);
 
     await clearAlertState(ctx.from.id);
     await ctx.answerCallbackQuery("✅ Alert created!").catch(() => null);

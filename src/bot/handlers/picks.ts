@@ -27,6 +27,7 @@ export async function handlePicks(ctx: Context): Promise<void> {
     return;
   }
 
+  await ctx.api.sendChatAction(ctx.chat!.id, "typing").catch(() => null);
   const loading = await ctx.reply("📈 <b>Generating today's picks…</b> This may take a moment.", {
     parse_mode: "HTML",
   });

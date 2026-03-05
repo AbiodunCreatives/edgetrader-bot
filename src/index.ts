@@ -23,6 +23,7 @@ import { redis } from "./utils/rateLimit.js";
 import { supabase } from "./db/client.js";
 import { registerCommands } from "./bot/commands.js";
 import { startScheduler } from "./services/alerts/scheduler.js";
+import { getTrendingBayseMarkets } from "./services/markets/bayse.js";
 
 // ── Bot ───────────────────────────────────────────────────────────────────────
 
@@ -72,7 +73,7 @@ app.get("/health", async (_req, res) => {
 
 // POST /webhook/:token ─────────────────────────────────────────────────────────
 
-app.post("/webhook/:token", async (req, res) => {
+app.post("/webhook/:token", (req, res) => {
   // Reject requests with the wrong token before touching the update
   if (req.params["token"] !== config.BOT_TOKEN) {
     console.warn("[webhook] Rejected request with invalid token");
@@ -80,15 +81,14 @@ app.post("/webhook/:token", async (req, res) => {
     return;
   }
 
-  try {
-    await bot.handleUpdate(req.body);
-  } catch (err) {
-    // handleUpdate errors are normally caught by bot.catch(); log if one escapes
-    console.error("[webhook] Unhandled error in handleUpdate:", err);
-  }
-
-  // Telegram requires a 200 response regardless of processing outcome
+  // Acknowledge immediately — Telegram retries if it doesn't get 200 within ~15s.
+  // Long-running handlers (Claude AI, market fetches) would trigger retries and
+  // cause duplicate responses if we awaited handleUpdate before responding.
   res.sendStatus(200);
+
+  bot.handleUpdate(req.body).catch((err) => {
+    console.error("[webhook] Unhandled error in handleUpdate:", err);
+  });
 });
 
 // ── HTTP server ───────────────────────────────────────────────────────────────
@@ -169,8 +169,19 @@ async function main(): Promise<void> {
     // Non-fatal: bot can still serve some commands, but warn loudly
   }
 
+  // Warm Bayse market cache in the background so first search is instant
+  getTrendingBayseMarkets().then((m) =>
+    console.log(`[bayse] Cache warmed — ${m.length} markets loaded.`)
+  ).catch((err) =>
+    console.warn("[bayse] Cache warm failed:", (err as Error).message)
+  );
+
   // Start background cron jobs (both modes need them)
   startScheduler();
+
+  // grammY requires bot.init() in webhook mode (bot.start() handles it in polling mode)
+  await bot.init();
+  console.log(`[bot] Initialized as @${bot.botInfo.username}`);
 
   if (config.WEBHOOK_URL) {
     // ── Webhook mode (production) ────────────────────────────────────────────
@@ -182,6 +193,7 @@ async function main(): Promise<void> {
       allowed_updates: [
         "message",
         "callback_query",
+        "inline_query",
         "my_chat_member",
       ],
       drop_pending_updates: true,

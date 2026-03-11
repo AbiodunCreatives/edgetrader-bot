@@ -113,31 +113,32 @@ export async function fetchLivePrice(asset: AssetDef): Promise<LivePrice> {
 
 // ── Question parser ──────────────────────────────────────────────────────────
 
-export interface ParsedPriceMarket {
-  asset: AssetDef;
-  targetPrice: number;
-}
-
 /**
- * Attempt to extract the crypto asset and price target from a market question.
- * Returns null if the question doesn't look like a crypto price market.
+ * Detect whether a market question mentions a known crypto asset.
+ * Returns the AssetDef if found, null otherwise.
  *
- * Handles formats like:
+ * Examples that match:
  *   "Will BTC reach $150,000 by end of 2025?"
- *   "Bitcoin above $100k in Q1 2026?"
+ *   "Bitcoin above all-time high in Q1 2026?"
  *   "ETH price exceeds $10,000?"
+ *   "Solana dominance in 2025?"
  */
-export function parsePriceMarket(question: string): ParsedPriceMarket | null {
+export function detectCryptoAsset(question: string): AssetDef | null {
   const q = question.toLowerCase();
-
-  // Find a known asset in the question
   const assetKey = Object.keys(ASSETS).find((k) => {
     const re = new RegExp(`\\b${k}\\b`);
     return re.test(q);
   });
-  if (!assetKey) return null;
+  return assetKey ? (ASSETS[assetKey] ?? null) : null;
+}
 
-  // Look for a dollar amount (handles $150k, $1,000,000, $2.5M, $99000)
+/**
+ * Extract a dollar price target from a market question if present.
+ * Returns null if no recognisable price target is found.
+ *
+ * Handles: $150k, $1,000,000, $2.5M, $99000
+ */
+export function parseTargetPrice(question: string): number | null {
   const priceMatch = question.match(/\$[\d,]+(?:\.\d+)?(?:[kKmM])?/);
   if (!priceMatch) return null;
 
@@ -152,7 +153,5 @@ export function parsePriceMarket(question: string): ParsedPriceMarket | null {
     targetPrice = parseFloat(raw);
   }
 
-  if (!isFinite(targetPrice) || targetPrice <= 0) return null;
-
-  return { asset: ASSETS[assetKey]!, targetPrice };
+  return isFinite(targetPrice) && targetPrice > 0 ? targetPrice : null;
 }

@@ -22,7 +22,7 @@ import {
   COMPARE_PROMPT,
   CRYPTO_PRICE_ANALYSIS_PROMPT,
 } from "./prompts.js";
-import { parsePriceMarket, fetchLivePrice } from "../price/crypto.js";
+import { detectCryptoAsset, parseTargetPrice, fetchLivePrice } from "../price/crypto.js";
 import type { LivePrice } from "../price/crypto.js";
 
 // ── Client ─────────────────────────────────────────────────────────────────
@@ -199,26 +199,34 @@ async function fetchRecentNews(query: string, limit = 3): Promise<{ title: strin
 
 interface CryptoPriceContext {
   livePrice: LivePrice;
-  targetPrice: number;
-  requiredMovePct: number;
+  /** Extracted from the market question — null when no dollar target is present. */
+  targetPrice: number | null;
+  /** null when no targetPrice could be determined. */
+  requiredMovePct: number | null;
   daysRemaining: number | null;
 }
 
 /**
- * If the market question describes a crypto price target (e.g. "Will BTC reach
- * $150k?"), fetch a live spot price and compute the required move.
- * Returns null for non-crypto or non-price markets.
+ * If the market question mentions a known crypto asset (BTC/ETH/SOL etc.),
+ * fetch a live spot price and build the analysis context.
+ *
+ * Works for both price-target markets ("Will BTC reach $150k?") and
+ * general crypto markets ("Will Bitcoin hit ATH in 2025?").
+ * Returns null only for non-crypto markets.
  */
 async function buildCryptoPriceContext(
   market: MarketData
 ): Promise<CryptoPriceContext | null> {
-  const parsed = parsePriceMarket(market.question);
-  if (!parsed) return null;
+  const asset = detectCryptoAsset(market.question);
+  if (!asset) return null;
 
-  const livePrice = await fetchLivePrice(parsed.asset);
+  const livePrice = await fetchLivePrice(asset);
 
+  const targetPrice = parseTargetPrice(market.question);
   const requiredMovePct =
-    ((parsed.targetPrice - livePrice.price) / livePrice.price) * 100;
+    targetPrice !== null
+      ? ((targetPrice - livePrice.price) / livePrice.price) * 100
+      : null;
 
   let daysRemaining: number | null = null;
   if (market.endDate) {
@@ -227,24 +235,23 @@ async function buildCryptoPriceContext(
     daysRemaining = Math.max(0, Math.round((closeMs - nowMs) / 86_400_000));
   }
 
-  return { livePrice, targetPrice: parsed.targetPrice, requiredMovePct, daysRemaining };
+  return { livePrice, targetPrice, requiredMovePct, daysRemaining };
 }
 
 /**
  * Format a CryptoPriceContext as a structured block to inject into the Claude
- * user message. Claude is explicitly told to use only these values.
+ * user message. Claude is explicitly told to use only these values and must
+ * not substitute prices from its training data.
  */
 function formatCryptoBlock(ctx: CryptoPriceContext, market: MarketData): string {
   const { livePrice, targetPrice, requiredMovePct, daysRemaining } = ctx;
-  const direction = requiredMovePct >= 0 ? "gain" : "decline";
-  const absPct = Math.abs(requiredMovePct).toFixed(1);
   const yesOdds = ((market.probability ?? 0) * 100).toFixed(1);
   const closeStr = market.endDate
     ? new Date(market.endDate).toDateString()
     : "open-ended";
 
-  return [
-    `LIVE INPUTS (fetched at runtime — do NOT override with training-data prices):`,
+  const lines = [
+    `LIVE INPUTS (fetched at runtime — do NOT substitute training-data prices):`,
     `  Asset:            ${livePrice.asset}`,
     `  Current price:    $${livePrice.price.toLocaleString("en-US")}`,
     `  Price source:     ${livePrice.source === "coingecko" ? "CoinGecko" : "Binance"}`,
@@ -256,11 +263,20 @@ function formatCryptoBlock(ctx: CryptoPriceContext, market: MarketData): string 
     `  Market closes:    ${closeStr}`,
     `  Days remaining:   ${daysRemaining !== null ? daysRemaining : "unknown"}`,
     `  Volume:           $${(market.volume ?? 0).toLocaleString("en-US")}`,
-    ``,
-    `CALCULATED VALUES:`,
-    `  Target price:     $${targetPrice.toLocaleString("en-US")}`,
-    `  Required move:    ${absPct}% ${direction}`,
-  ].join("\n");
+  ];
+
+  if (targetPrice !== null && requiredMovePct !== null) {
+    const direction = requiredMovePct >= 0 ? "gain" : "decline";
+    const absPct = Math.abs(requiredMovePct).toFixed(1);
+    lines.push(
+      ``,
+      `CALCULATED VALUES:`,
+      `  Target price:     $${targetPrice.toLocaleString("en-US")}`,
+      `  Required move:    ${absPct}% ${direction}`,
+    );
+  }
+
+  return lines.join("\n");
 }
 
 /**
@@ -351,16 +367,15 @@ export async function analyzeMarket(market: MarketData): Promise<string> {
   let maxTokens: number;
 
   if (cryptoCtx) {
-    // Validate all required values before calling Claude
-    const { livePrice, targetPrice, requiredMovePct, daysRemaining } = cryptoCtx;
-    if (!livePrice.price || livePrice.price <= 0) {
+    // Validate live price before calling Claude
+    if (!cryptoCtx.livePrice.price || cryptoCtx.livePrice.price <= 0) {
       throw new Error("Live price fetch succeeded but returned an invalid value. Analysis aborted.");
     }
     const yesOdds = (market.probability ?? 0) * 100;
     if (yesOdds < 0 || yesOdds > 100) {
       throw new Error(`Market probability out of range (${yesOdds.toFixed(1)}%). Analysis aborted.`);
     }
-    if (daysRemaining !== null && daysRemaining <= 0) {
+    if (cryptoCtx.daysRemaining !== null && cryptoCtx.daysRemaining <= 0) {
       throw new Error("Market has already closed (days remaining ≤ 0). Analysis aborted.");
     }
 

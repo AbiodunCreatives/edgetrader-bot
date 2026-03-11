@@ -36,15 +36,8 @@ const app = express();
 // Limit payload size to mitigate abuse on the webhook endpoint
 app.use(express.json({ limit: "100kb" }));
 
-// GET /health
-// Protected by HEALTH_CHECK_TOKEN (header x-health-token or ?token=) to avoid exposing metrics publicly in production.
-app.get("/health", async (req, res) => {
-  const token = req.header("x-health-token") ?? (req.query["token"] as string | undefined);
-  if (config.HEALTH_CHECK_TOKEN && token !== config.HEALTH_CHECK_TOKEN) {
-    res.sendStatus(403);
-    return;
-  }
-
+// GET /health — open to all requests so Railway's healthcheck can reach it.
+app.get("/health", async (_req, res) => {
   const [marketsResult, alertsResult, redisResult] = await Promise.allSettled([
     supabase
       .from("markets_cache")

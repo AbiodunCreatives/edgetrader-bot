@@ -78,7 +78,7 @@ app.get("/health", async (req, res) => {
   });
 });
 
-// POST /webhook/:secret", (req, res) => {
+app.post("/webhook/:secret", (req, res) => {
   // Reject requests with the wrong path secret before touching the update
   if (req.params["secret"] !== config.WEBHOOK_PATH_SECRET) {
     console.warn("[webhook] Rejected request with invalid path secret");

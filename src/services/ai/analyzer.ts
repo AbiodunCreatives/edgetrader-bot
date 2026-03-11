@@ -20,7 +20,10 @@ import {
   MARKET_ANALYSIS_PROMPT,
   DAILY_PICKS_PROMPT,
   COMPARE_PROMPT,
+  CRYPTO_PRICE_ANALYSIS_PROMPT,
 } from "./prompts.js";
+import { parsePriceMarket, fetchLivePrice } from "../price/crypto.js";
+import type { LivePrice } from "../price/crypto.js";
 
 // ── Client ─────────────────────────────────────────────────────────────────
 
@@ -192,6 +195,85 @@ async function fetchRecentNews(query: string, limit = 3): Promise<{ title: strin
   }
 }
 
+// ── Crypto price enrichment ─────────────────────────────────────────────────
+
+interface CryptoPriceContext {
+  livePrice: LivePrice;
+  targetPrice: number;
+  requiredMovePct: number;
+  daysRemaining: number | null;
+}
+
+/**
+ * If the market question describes a crypto price target (e.g. "Will BTC reach
+ * $150k?"), fetch a live spot price and compute the required move.
+ * Returns null for non-crypto or non-price markets.
+ */
+async function buildCryptoPriceContext(
+  market: MarketData
+): Promise<CryptoPriceContext | null> {
+  const parsed = parsePriceMarket(market.question);
+  if (!parsed) return null;
+
+  const livePrice = await fetchLivePrice(parsed.asset);
+
+  const requiredMovePct =
+    ((parsed.targetPrice - livePrice.price) / livePrice.price) * 100;
+
+  let daysRemaining: number | null = null;
+  if (market.endDate) {
+    const closeMs = new Date(market.endDate).getTime();
+    const nowMs = Date.now();
+    daysRemaining = Math.max(0, Math.round((closeMs - nowMs) / 86_400_000));
+  }
+
+  return { livePrice, targetPrice: parsed.targetPrice, requiredMovePct, daysRemaining };
+}
+
+/**
+ * Format a CryptoPriceContext as a structured block to inject into the Claude
+ * user message. Claude is explicitly told to use only these values.
+ */
+function formatCryptoBlock(ctx: CryptoPriceContext, market: MarketData): string {
+  const { livePrice, targetPrice, requiredMovePct, daysRemaining } = ctx;
+  const direction = requiredMovePct >= 0 ? "gain" : "decline";
+  const absPct = Math.abs(requiredMovePct).toFixed(1);
+  const yesOdds = ((market.probability ?? 0) * 100).toFixed(1);
+  const closeStr = market.endDate
+    ? new Date(market.endDate).toDateString()
+    : "open-ended";
+
+  return [
+    `LIVE INPUTS (fetched at runtime — do NOT override with training-data prices):`,
+    `  Asset:            ${livePrice.asset}`,
+    `  Current price:    $${livePrice.price.toLocaleString("en-US")}`,
+    `  Price source:     ${livePrice.source === "coingecko" ? "CoinGecko" : "Binance"}`,
+    `  Fetched at:       ${livePrice.fetchedAt} UTC`,
+    ``,
+    `MARKET DATA (fetched live from Polymarket):`,
+    `  Question:         ${market.question}`,
+    `  Current YES odds: ${yesOdds}%`,
+    `  Market closes:    ${closeStr}`,
+    `  Days remaining:   ${daysRemaining !== null ? daysRemaining : "unknown"}`,
+    `  Volume:           $${(market.volume ?? 0).toLocaleString("en-US")}`,
+    ``,
+    `CALCULATED VALUES:`,
+    `  Target price:     $${targetPrice.toLocaleString("en-US")}`,
+    `  Required move:    ${absPct}% ${direction}`,
+  ].join("\n");
+}
+
+/**
+ * Build the data-freshness footer appended to every crypto price analysis.
+ */
+function freshnessBanner(ctx: CryptoPriceContext): string {
+  const src = ctx.livePrice.source === "coingecko" ? "CoinGecko" : "Binance";
+  return (
+    `\n\n⚠️ Data fetched at ${ctx.livePrice.fetchedAt} UTC via ${src}. ` +
+    `Re-run analysis if more than 1 hour has passed.`
+  );
+}
+
 // ── Core API wrapper ───────────────────────────────────────────────────────
 
 interface ClaudeResult {
@@ -255,25 +337,66 @@ export async function analyzeMarket(market: MarketData): Promise<string> {
 
   await guardBudget();
 
-  const news = await fetchRecentNews(market.question, 3);
-  const newsBlock =
-    news.length === 0
-      ? "Recent news: none found."
-      : "Recent news:\n" +
-        news
-          .map(
-            (n) =>
-              `- ${n.title}${n.date ? ` (${new Date(n.date).toDateString()})` : ""}`
-          )
-          .join("\n");
+  // Attempt to detect a crypto price market and fetch live data.
+  // If price fetch fails we log the error and fall through to the generic path.
+  let cryptoCtx: CryptoPriceContext | null = null;
+  try {
+    cryptoCtx = await buildCryptoPriceContext(market);
+  } catch (err) {
+    console.warn("[ai] crypto price fetch failed, falling back to generic analysis:", err);
+  }
 
-  const userMessage = `${formatMarket(market)}\n\n${newsBlock}`;
-  const result = await callClaude(MARKET_ANALYSIS_PROMPT, userMessage, 500);
+  let systemPrompt: string;
+  let userMessage: string;
+  let maxTokens: number;
+
+  if (cryptoCtx) {
+    // Validate all required values before calling Claude
+    const { livePrice, targetPrice, requiredMovePct, daysRemaining } = cryptoCtx;
+    if (!livePrice.price || livePrice.price <= 0) {
+      throw new Error("Live price fetch succeeded but returned an invalid value. Analysis aborted.");
+    }
+    const yesOdds = (market.probability ?? 0) * 100;
+    if (yesOdds < 0 || yesOdds > 100) {
+      throw new Error(`Market probability out of range (${yesOdds.toFixed(1)}%). Analysis aborted.`);
+    }
+    if (daysRemaining !== null && daysRemaining <= 0) {
+      throw new Error("Market has already closed (days remaining ≤ 0). Analysis aborted.");
+    }
+
+    systemPrompt = CRYPTO_PRICE_ANALYSIS_PROMPT;
+    userMessage = formatCryptoBlock(cryptoCtx, market);
+    maxTokens = 600;
+  } else {
+    // Generic path: include market card + recent news
+    const news = await fetchRecentNews(market.question, 3);
+    const newsBlock =
+      news.length === 0
+        ? "Recent news: none found."
+        : "Recent news:\n" +
+          news
+            .map(
+              (n) =>
+                `- ${n.title}${n.date ? ` (${new Date(n.date).toDateString()})` : ""}`
+            )
+            .join("\n");
+
+    systemPrompt = MARKET_ANALYSIS_PROMPT;
+    userMessage = `${formatMarket(market)}\n\n${newsBlock}`;
+    maxTokens = 500;
+  }
+
+  const result = await callClaude(systemPrompt, userMessage, maxTokens);
+
+  // Append freshness footer for crypto price analyses
+  const finalText = cryptoCtx
+    ? result.text + freshnessBanner(cryptoCtx)
+    : result.text;
 
   await recordUsage(result.inputTokens, result.outputTokens);
-  await cacheSet(cacheKey, result.text, AI_CACHE_TTL);
+  await cacheSet(cacheKey, finalText, AI_CACHE_TTL);
 
-  return result.text;
+  return finalText;
 }
 
 /**
